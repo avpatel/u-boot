@@ -152,6 +152,11 @@ config 32BIT
 config 64BIT
 	bool
 
+config DMA_ADDR_T_64BIT
+	bool
+	depends on 64BIT
+	default n
+
 config SIFIVE_CLINT
 	bool
 	depends on RISCV_MMODE || SPL_RISCV_MMODE
