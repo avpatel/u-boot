@@ -11,7 +11,7 @@
 	compatible = "microchip,polarfire-soc";
 
 	aliases {
-		serial0 = &uart1;
+		serial0 = &uart0;
 		ethernet0 = &emac1;
 	};
 
@@ -250,7 +250,7 @@
 		interrupts = <90>;
 		clock-frequency = <150000000>;
 		clocks = <&clkcfg CLK_MMUART0>;
-		status = "disabled";
+		status = "okay";
 	};
 	uart1: serial@20100000 {
 		compatible = "ns16550a";
