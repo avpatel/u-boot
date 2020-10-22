@@ -81,6 +81,10 @@ DECLARE_GLOBAL_DATA_PTR;
 struct macb_dma_desc {
 	u32	addr;
 	u32	ctrl;
+#ifdef CONFIG_DMA_ADDR_T_64BIT
+	u32 addrh;
+	u32 unused;
+#endif
 };
 
 #define DMA_DESC_BYTES(n)	(n * sizeof(struct macb_dma_desc))
@@ -326,7 +330,10 @@ static int _macb_send(struct macb_device *macb, const char *name, void *packet,
 	}
 
 	macb->tx_ring[tx_head].ctrl = ctrl;
-	macb->tx_ring[tx_head].addr = paddr;
+	macb->tx_ring[tx_head].addr = lower_32_bits(paddr);
+#ifdef CONFIG_DMA_ADDR_T_64BIT
+	macb->tx_ring[tx_head].addrh = upper_32_bits(paddr);
+#endif
 	barrier();
 	macb_flush_ring_desc(macb, TX);
 	macb_writel(macb, NCR, MACB_BIT(TE) | MACB_BIT(RE) | MACB_BIT(TSTART));
@@ -732,9 +739,20 @@ static int gmac_init_multi_queues(struct macb_device *macb)
 	flush_dcache_range(macb->dummy_desc_dma, macb->dummy_desc_dma +
 			ALIGN(MACB_TX_DUMMY_DMA_DESC_SIZE, PKTALIGN));
 
-	for (i = 1; i < num_queues; i++)
-		gem_writel_queue_TBQP(macb, macb->dummy_desc_dma, i - 1);
-
+	for (i = 1; i < num_queues; i++) {
+		gem_writel_queue_TBQP(macb,
+			lower_32_bits(macb->dummy_desc_dma), i - 1);
+#ifdef CONFIG_DMA_ADDR_T_64BIT
+		gem_writel_queue_TBQPH(macb,
+			upper_32_bits(macb->dummy_desc_dma), i - 1);
+#endif
+		gem_writel_queue_RBQP(macb,
+			lower_32_bits(macb->dummy_desc_dma), i - 1);
+#ifdef CONFIG_DMA_ADDR_T_64BIT
+		gem_writel_queue_RBQPH(macb,
+			upper_32_bits(macb->dummy_desc_dma), i - 1);
+#endif
+	}
 	return 0;
 }
 
@@ -760,6 +778,9 @@ static void gmac_configure_dma(struct macb_device *macb)
 		dmacfg &= ~GEM_BIT(ENDIA_DESC);
 
 	dmacfg &= ~GEM_BIT(ADDR64);
+#ifdef CONFIG_DMA_ADDR_T_64BIT
+	dmacfg |= GEM_BIT(ADDR64);
+#endif
 	gem_writel(macb, DMACFG, dmacfg);
 }
 
@@ -786,8 +807,11 @@ static int _macb_init(struct macb_device *macb, const char *name)
 	for (i = 0; i < MACB_RX_RING_SIZE; i++) {
 		if (i == (MACB_RX_RING_SIZE - 1))
 			paddr |= MACB_BIT(RX_WRAP);
-		macb->rx_ring[i].addr = paddr;
+		macb->rx_ring[i].addr = lower_32_bits(paddr);
 		macb->rx_ring[i].ctrl = 0;
+#ifdef CONFIG_DMA_ADDR_T_64BIT
+		macb->rx_ring[i].addrh = upper_32_bits(paddr);
+#endif
 		paddr += macb->rx_buffer_size;
 	}
 	macb_flush_ring_desc(macb, RX);
@@ -800,6 +824,9 @@ static int _macb_init(struct macb_device *macb, const char *name)
 				MACB_BIT(TX_WRAP);
 		else
 			macb->tx_ring[i].ctrl = MACB_BIT(TX_USED);
+#ifdef CONFIG_DMA_ADDR_T_64BIT
+		macb->tx_ring[i].addrh = 0x0;
+#endif
 	}
 	macb_flush_ring_desc(macb, TX);
 
@@ -812,9 +839,12 @@ static int _macb_init(struct macb_device *macb, const char *name)
 	gem_writel(macb, DMACFG, MACB_ZYNQ_GEM_DMACR_INIT);
 #endif
 
-	macb_writel(macb, RBQP, macb->rx_ring_dma);
-	macb_writel(macb, TBQP, macb->tx_ring_dma);
-
+	macb_writel(macb, RBQP, lower_32_bits(macb->rx_ring_dma));
+	macb_writel(macb, TBQP, lower_32_bits(macb->tx_ring_dma));
+#ifdef CONFIG_DMA_ADDR_T_64BIT
+	macb_writel(macb, RBQPH, upper_32_bits(macb->rx_ring_dma));
+	macb_writel(macb, TBQPH, upper_32_bits(macb->tx_ring_dma));
+#endif
 	if (macb_is_gem(macb)) {
 		/* Initialize DMA properties */
 		gmac_configure_dma(macb);
