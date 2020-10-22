@@ -15,6 +15,7 @@ Board-specific doc
    freescale/index
    google/index
    intel/index
+   microchip/index
    renesas/index
    rockchip/index
    sifive/index
