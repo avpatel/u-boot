@@ -477,6 +477,12 @@ static int macb_phy_find(struct macb_device *macb, const char *name)
 	int i;
 	u16 phy_id;
 
+	phy_id = macb_mdio_read(macb, macb->phy_addr, MII_PHYSID1);
+	if (phy_id != 0xffff) {
+		printf("%s: PHY present at %d\n", name, macb->phy_addr);
+		return 0;
+	}
+
 	/* Search for PHY... */
 	for (i = 0; i < 32; i++) {
 		macb->phy_addr = i;
@@ -1256,6 +1262,8 @@ static int macb_eth_probe(struct udevice *dev)
 	struct macb_device *macb = dev_get_priv(dev);
 	const char *phy_mode;
 	int ret;
+	u32 phy_addr;
+	ofnode node;
 
 	phy_mode = fdt_getprop(gd->fdt_blob, dev_of_offset(dev), "phy-mode",
 			       NULL);
@@ -1264,6 +1272,13 @@ static int macb_eth_probe(struct udevice *dev)
 	if (macb->phy_interface == -1) {
 		debug("%s: Invalid PHY interface '%s'\n", __func__, phy_mode);
 		return -EINVAL;
+	}
+
+	/* Look for a PHY node under the Ethernet node */
+	node = dev_read_subnode(dev, "ethernet-phy");
+	if (ofnode_valid(node)) {
+		ofnode_read_u32(node, "reg", &phy_addr);
+		macb->phy_addr = phy_addr;
 	}
 
 	macb->regs = (void *)pdata->iobase;
